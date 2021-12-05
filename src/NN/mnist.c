@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <math.h>
 #include <err.h>
+#include <SDL/SDL.h>
+#include <SDL/SDL_image.h>
 
 
 
@@ -19,6 +21,40 @@ const char * train_images_file = "data/train-images-idx3-ubyte";
 const char * train_labels_file = "data/train-labels-idx1-ubyte";
 const char * test_images_file = "data/t10k-images-idx3-ubyte";
 const char * test_labels_file = "data/t10k-labels-idx1-ubyte";
+
+
+
+Uint32 getpixel(SDL_Surface *surface, int x, int y)
+{
+    int bpp = surface->format->BytesPerPixel;
+    /* Here p is the address to the pixel we want to retrieve */
+    Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * bpp;
+
+    switch (bpp)
+    {
+        case 1:
+            return *p;
+            break;
+
+        case 2:
+            return *(Uint16 *)p;
+            break;
+
+        case 3:
+            if (SDL_BYTEORDER == SDL_BIG_ENDIAN)
+                return p[0] << 16 | p[1] << 8 | p[2];
+            else
+                return p[0] | p[1] << 8 | p[2] << 16;
+            break;
+
+        case 4:
+            return *(Uint32 *)p;
+            break;
+
+        default:
+            return 0;       /* shouldn't happen, but avoids warnings */
+    }
+}
 
 /**
  * Calculate the accuracy of the predictions of a neural network on a dataset.
@@ -89,9 +125,10 @@ int main()
             if(i%1000 == 0)
             {
                 // Calculate the accuracy using the whole test datasetal_loss += neural_network_gradient_update(&dataset->images[i], network, &gradient, dataset->labels[i]);
-            }
+            
             accuracy = calculate_accuracy(test_dataset, &network);
             printf("Step %04d\tAverage Loss: %.2f\tAccuracy: %.3f\n", i, loss / batch.size, accuracy);
+            }
         }
         //printf("%d\n",i);
         // Cleanup
@@ -101,6 +138,7 @@ int main()
     }
     else
     {
+        char grid[82];
         FILE *file;
         file  = fopen(PATH,"r");
         char * line  = NULL;
@@ -121,17 +159,80 @@ int main()
         fclose(file);
         float activations[10],max_activation;
         int j,predict;
-        mnist_image_t img = test_dataset->images[0];
-        neural_network_hypothesis(&img,&network,activations);
-        for (j = 0, predict = 0, max_activation = activations[0]; j < MNIST_LABELS; j++) {
-            if (max_activation < activations[j]) {
-                max_activation = activations[j];
-                predict = j;
+        for(int i = 0; i<81;i++)
+        {
+            mnist_image_t img;
+            char path[12];
+            if(i<10)
+            {
+                snprintf(path,12,"number_0%d.png",i);
             }
+            else
+            {
+                snprintf(path,12,"number_%d.png",i);
+            }
+            SDL_Init(SDL_INIT_VIDEO);
+            SDL_Surface *imageSDL;
+            imageSDL = IMG_Load(path);
+            int average;
+            for(int j = 0;j<28;j++)
+            {
+                for(int k = 0; k<28;k++)
+                {
+                    SDL_Color rgb;
+                    uint32_t pixel = getpixel(imageSDL,k,j);
+                    SDL_GetRGB(pixel,imageSDL->format,&rgb.r,&rgb.g,&rgb.b);
+
+                    if(rgb.b == 255)
+                    {
+                        img.pixels[j*28+k] = 0;
+                    }
+                    else
+                    {
+                        if(k>4 && k<24 && j>4 && j<24)
+                        {
+                            img.pixels[j*28+k] = 255;
+                            average++;
+                        }
+                        else
+                            img.pixels[j*28+k] = 0;
+                    }
+                }
+            }
+            if(average == 0)
+                grid[i] = 0;
+            else
+            {
+                average = 0;
+                neural_network_hypothesis(&img,&network,activations);
+                for (j = 0, predict = 0, max_activation = activations[0]; j < MNIST_LABELS; j++)
+                {
+                    if (max_activation < activations[j]) {
+                        max_activation = activations[j];
+                        predict = j;
+                    }
+                }
+                grid[i] = predict;
+            }
+            FILE *fp;
+            fp = fopen("../Sudoku/grid","w");
+            for(int k = 0;k<9;k++)
+            {
+                for(int j = 0;j<9;j++)
+                {
+                    if (j == 3 || j == 6)
+                        fprintf(fp,"%c",' ');
+                    fprintf(fp,"%d",grid[k*9+j]);
+                    if (j == 8 && k != 8)
+                        fprintf(fp,"%s","\n");
+                }
+                if(k == 2 || k == 5)
+                    fprintf(fp,"%c",'\n');
+            }
+            fprintf(fp,"%c",'\n');
+            fclose(fp);
         }
-
-        printf("%d,%d",predict,test_dataset->labels[0]);
     }
-
     return 0;
 }
+
