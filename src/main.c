@@ -138,14 +138,8 @@ int main(int argc, char *argv[])
     // Deskew
     remove("tmp/deskew.png");
     Rot(image);
-    if(!access("tmp/deskew.png", F_OK ))
-    {
-        display("tmp/deskew.png");
-
-        // Getting deskewed image
-        path = "tmp/deskew.png";
-        image = load_img(path);
-    }
+    
+    display("tmp/deskew.png");
 
     // Sobel
     remove("tmp/sobel.png");
@@ -158,6 +152,10 @@ int main(int argc, char *argv[])
         path = "tmp/sobel.png";
         image = load_img(path);
     }
+    
+    // Hough test (by David)
+    hough(image);
+    IMG_SavePNG(image, "tmp/hough.png");
 
     return EXIT_SUCCESS;
 }

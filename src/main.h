@@ -10,6 +10,7 @@
 #include "binarize.h"
 #include "noisereduction.h"
 #include "deskew.h"
+#include "hough.h"
 #include "sobel.h"
 
 void display(char *path);
